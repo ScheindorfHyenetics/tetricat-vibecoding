@@ -26,6 +26,8 @@ SKULL_COLORS = {
 
 HYENA_KIND = "H"
 HYENA_COLOR = "#c7b07a"
+GHOST_KIND = "GH"
+GHOST_COLOR = "#b9f2ff"
 
 STANDARD_SHAPES = {
     "I": [
@@ -107,7 +109,7 @@ SKULL_SHAPES = {
 }
 
 ALL_SHAPES = {**STANDARD_SHAPES, **DOG_SHAPES, **SKULL_SHAPES}
-ALL_COLORS = {**CAT_COLORS, **DOG_COLORS, **SKULL_COLORS, HYENA_KIND: HYENA_COLOR}
+ALL_COLORS = {**CAT_COLORS, **DOG_COLORS, **SKULL_COLORS, HYENA_KIND: HYENA_COLOR, GHOST_KIND: GHOST_COLOR}
 DOG_KINDS = set(DOG_SHAPES)
 SKULL_KINDS = set(SKULL_SHAPES)
 
@@ -129,4 +131,3 @@ class Piece:
         y = self.y if y is None else y
         shape = ALL_SHAPES[self.kind][rotation % len(ALL_SHAPES[self.kind])]
         return [(x + cx, y + cy) for cx, cy in shape]
-

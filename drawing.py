@@ -1,7 +1,7 @@
 import tkinter as tk
 
 from config import BOARD_H, BOARD_W, CELL, COLS, EMPTY, ROWS, WINDOW_H, WINDOW_W
-from pieces import ALL_COLORS, ALL_SHAPES, DOG_KINDS, HYENA_KIND, SKULL_KINDS
+from pieces import ALL_COLORS, ALL_SHAPES, DOG_KINDS, GHOST_KIND, HYENA_KIND, SKULL_KINDS
 
 
 class TetricatDrawing:
@@ -16,6 +16,7 @@ class TetricatDrawing:
             self.draw_ghost()
             self.draw_current_piece()
         self.draw_hyena_animation()
+        self.draw_ghost_animation()
         self.draw_sidebar()
 
         if self.paused:
@@ -62,6 +63,16 @@ class TetricatDrawing:
             HYENA_KIND,
         )
 
+    def draw_ghost_animation(self):
+        if not self.ghost_animation:
+            return
+        col = self.ghost_animation["col"]
+        row = self.ghost_animation["row"]
+        visible_cells = max(1, int(self.ghost_animation["progress"] * 4 + 0.999))
+        for index, (dx, dy) in enumerate(((0, 0), (1, 0), (0, 1), (1, 1))):
+            if index < visible_cells:
+                self.draw_piece_cell(col + dx, row + dy, GHOST_KIND)
+
     def draw_piece_cell(self, grid_x, grid_y, kind, ghost=False, offset_x=0, offset_y=0, scale=1):
         color = ALL_COLORS[kind]
         if kind in DOG_KINDS:
@@ -70,6 +81,8 @@ class TetricatDrawing:
             self.draw_skull_cell(grid_x, grid_y, color, ghost=ghost, offset_x=offset_x, offset_y=offset_y, scale=scale)
         elif kind == HYENA_KIND:
             self.draw_hyena_cell(grid_x, grid_y, color, ghost=ghost, offset_x=offset_x, offset_y=offset_y, scale=scale)
+        elif kind == GHOST_KIND:
+            self.draw_ghost_cell(grid_x, grid_y, color, ghost=ghost, offset_x=offset_x, offset_y=offset_y, scale=scale)
         else:
             self.draw_cat_cell(grid_x, grid_y, color, ghost=ghost, offset_x=offset_x, offset_y=offset_y, scale=scale)
 
@@ -286,6 +299,47 @@ class TetricatDrawing:
         self.canvas.create_line(x + 6 * scale, y + 23 * scale, x + 2 * scale, y + 24 * scale, fill="#171b24")
         self.canvas.create_line(x + 27 * scale, y + 23 * scale, x + 31 * scale, y + 24 * scale, fill="#171b24")
 
+    def draw_ghost_cell(self, grid_x, grid_y, color, ghost=False, offset_x=0, offset_y=0, scale=1):
+        x = offset_x + grid_x * CELL * scale
+        y = offset_y + grid_y * CELL * scale
+        size = CELL * scale
+        outline = "#d9fbff" if not ghost else "#566070"
+        fill = "" if ghost else color
+        width = 2 if not ghost else 1
+
+        body = [
+            x + 4 * scale,
+            y + 13 * scale,
+            x + 5 * scale,
+            y + 8 * scale,
+            x + 9 * scale,
+            y + 4 * scale,
+            x + size - 9 * scale,
+            y + 4 * scale,
+            x + size - 5 * scale,
+            y + 8 * scale,
+            x + size - 4 * scale,
+            y + 13 * scale,
+            x + size - 4 * scale,
+            y + size - 5 * scale,
+            x + 23 * scale,
+            y + 25 * scale,
+            x + 17 * scale,
+            y + size - 4 * scale,
+            x + 11 * scale,
+            y + 25 * scale,
+            x + 4 * scale,
+            y + size - 5 * scale,
+        ]
+        self.canvas.create_polygon(body, fill=fill, outline=outline, width=width, smooth=True)
+
+        if ghost:
+            return
+
+        self.canvas.create_oval(x + 10 * scale, y + 12 * scale, x + 14 * scale, y + 18 * scale, fill="#15202b", outline="")
+        self.canvas.create_oval(x + 20 * scale, y + 12 * scale, x + 24 * scale, y + 18 * scale, fill="#15202b", outline="")
+        self.canvas.create_oval(x + 14 * scale, y + 20 * scale, x + 20 * scale, y + 24 * scale, fill="#15202b", outline="")
+
     def draw_sidebar(self):
         x0 = BOARD_W
         self.canvas.create_rectangle(x0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
@@ -294,8 +348,8 @@ class TetricatDrawing:
         self.canvas.create_text(x0 + 28, 80, text=f"Score\n{self.score}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
         self.canvas.create_text(x0 + 28, 145, text=f"Lignes\n{self.lines}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
         self.canvas.create_text(x0 + 28, 210, text=f"Niveau\n{self.level}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
-        if self.hyena_notice:
-            self.canvas.create_text(x0 + 28, 262, text=self.hyena_notice, anchor="nw", fill="#ffd166", font=("Segoe UI", 9, "bold"), width=130)
+        if self.event_notice:
+            self.canvas.create_text(x0 + 28, 262, text=self.event_notice, anchor="nw", fill="#ffd166", font=("Segoe UI", 9, "bold"), width=130)
         self.canvas.create_text(x0 + 28, 285, text="Prochain", anchor="w", fill="#aeb7c8", font=("Segoe UI", 12, "bold"))
 
         preview_x = x0 + 34
@@ -329,7 +383,7 @@ class TetricatDrawing:
         self.canvas.create_text(
             WINDOW_W / 2,
             140,
-            text="Des chats, des chiens, des tetes de mort, et parfois une hyene.",
+            text="Des chats, des chiens, des tetes de mort, des hyenes et des fantomes.",
             fill="#aeb7c8",
             font=("Segoe UI", 13),
         )
@@ -339,10 +393,11 @@ class TetricatDrawing:
         for x, kind in enumerate(["P", "U", "SK_PLUS", "SK_X"]):
             self.draw_piece_cell(x, 0, kind, offset_x=250, offset_y=178, scale=0.78)
 
-        self.draw_menu_button(90, 275, "1  Mode classique", "Pieces standard en chats")
-        self.draw_menu_button(90, 340, "2  Mode chaos", "Pieces standard + formes chiens")
-        self.draw_menu_button(90, 405, "3  Mode crane", "Etoiles et carre creux en tetes de mort")
-        self.draw_menu_button(90, 470, "4  Mode hyene", "Mode crane + surprises entre pieces")
+        self.draw_menu_button(90, 250, "1  Mode classique", "Pieces standard en chats")
+        self.draw_menu_button(90, 305, "2  Mode chaos", "Pieces standard + formes chiens")
+        self.draw_menu_button(90, 360, "3  Mode crane", "Etoiles et carre creux en tetes de mort")
+        self.draw_menu_button(90, 415, "4  Mode hyene", "Mode crane + surprises entre pieces")
+        self.draw_menu_button(90, 470, "5  Mode fantome", "Blocs 2x2 temporaires et explosifs")
         music_hint = "M pour couper/remettre la musique"
         if self.music.backend == "synth":
             music_hint = "MIDI indisponible: boucle douce active"
@@ -350,7 +405,7 @@ class TetricatDrawing:
             music_hint = "MIDI indisponible: mini synthese active"
         elif self.music.backend == "off":
             music_hint = "Musique indisponible ici"
-        self.canvas.create_text(WINDOW_W / 2, 552, text="Clique un mode ou appuie sur 1 / 2 / 3 / 4", fill="#aeb7c8", font=("Segoe UI", 11))
+        self.canvas.create_text(WINDOW_W / 2, 552, text="Clique un mode ou appuie sur 1 / 2 / 3 / 4 / 5", fill="#aeb7c8", font=("Segoe UI", 11))
         self.canvas.create_text(WINDOW_W / 2, 578, text=music_hint, fill="#aeb7c8", font=("Segoe UI", 10))
 
     def draw_menu_button(self, x, y, title, subtitle):

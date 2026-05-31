@@ -12,5 +12,6 @@ def bind_user_inputs(game):
     game.root.bind("2", lambda _: game.start_game("chaos"))
     game.root.bind("3", lambda _: game.start_game("skull"))
     game.root.bind("4", lambda _: game.start_game("hyena"))
+    game.root.bind("5", lambda _: game.start_game("ghost"))
     game.root.bind("<Escape>", lambda _: game.show_menu())
     game.canvas.bind("<Button-1>", game.handle_click)

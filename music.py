@@ -64,6 +64,11 @@ class MidiMusic:
         else:
             self.stop()
 
+    def play_explosion(self):
+        if winsound is None:
+            return
+        threading.Thread(target=self.explosion_beeps, daemon=True).start()
+
     def stop(self):
         self.stop_beeps.set()
         if winsound is not None:
@@ -240,3 +245,11 @@ class MidiMusic:
                 winsound.Beep(freq, duration)
                 time.sleep(0.08)
             time.sleep(0.65)
+
+    def explosion_beeps(self):
+        for freq, duration in ((180, 55), (125, 70), (85, 120)):
+            try:
+                winsound.Beep(freq, duration)
+            except Exception:
+                return
+            time.sleep(0.025)
