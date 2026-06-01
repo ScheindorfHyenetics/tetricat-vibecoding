@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+# Les couleurs sont separees par famille de pieces pour garder un lien clair
+# entre la logique de mode et le style visuel applique dans drawing.py.
 CAT_COLORS = {
     "I": "#71d6ff",
     "O": "#ffd166",
@@ -29,6 +31,9 @@ HYENA_COLOR = "#c7b07a"
 GHOST_KIND = "GH"
 GHOST_COLOR = "#b9f2ff"
 
+# Chaque forme est une liste de rotations. Une rotation est une liste de cases
+# (x, y) relatives au coin superieur gauche de la piece. Cette representation
+# rend les collisions simples: il suffit d'ajouter la position de la piece.
 STANDARD_SHAPES = {
     "I": [
         [(0, 1), (1, 1), (2, 1), (3, 1)],
@@ -116,6 +121,9 @@ SKULL_KINDS = set(SKULL_SHAPES)
 
 @dataclass
 class Piece:
+    # Une Piece ne stocke que son type, sa position et sa rotation. Les formes et
+    # couleurs restent dans les tables globales pour eviter de dupliquer les
+    # donnees a chaque nouvelle piece.
     kind: str
     x: int = 3
     y: int = 0
@@ -126,6 +134,8 @@ class Piece:
         return ALL_COLORS[self.kind]
 
     def cells(self, rotation=None, x=None, y=None):
+        # Les parametres optionnels permettent de tester une position future
+        # sans modifier la piece actuelle: deplacement, rotation, ombre, etc.
         rotation = self.rotation if rotation is None else rotation
         x = self.x if x is None else x
         y = self.y if y is None else y

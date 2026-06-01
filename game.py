@@ -24,6 +24,9 @@ from pieces import ALL_SHAPES, DOG_SHAPES, GHOST_KIND, HYENA_KIND, Piece, SKULL_
 
 class Tetricat(TetricatDrawing):
     def __init__(self):
+        # Tkinter fournit a la fois la fenetre, la boucle d'evenements et le
+        # canevas de dessin. Tout le jeu est volontairement garde dans une seule
+        # fenetre fixe pour que les coordonnees du plateau restent stables.
         self.root = tk.Tk()
         self.root.title("Tetricat")
         self.root.resizable(False, False)
@@ -40,8 +43,14 @@ class Tetricat(TetricatDrawing):
         self.music.play()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
+        # La langue est choisie avant le menu des modes. Le localizer commence en
+        # anglais uniquement pour pouvoir afficher l'ecran initial.
         self.localizer = Localizer("en")
         self.language_selected = False
+
+        # Etat de partie. `mode is None` signifie que l'on est dans le menu; les
+        # pieces courantes restent alors vides et le tick automatique n'avance
+        # pas le plateau.
         self.mode = None
         self.mode_title = ""
         self.available_kinds = []
@@ -56,6 +65,9 @@ class Tetricat(TetricatDrawing):
         self.game_over = False
         self.soft_drop = False
         self.event_notice = ""
+
+        # Les animations speciales prennent temporairement la main sur la partie:
+        # pendant qu'elles sont actives, le joueur ne peut pas bouger de piece.
         self.hyena_animation = None
         self.ghost_animation = None
         self.ghost_blocks = []
@@ -66,10 +78,14 @@ class Tetricat(TetricatDrawing):
         self.tick()
 
     def refill_bag(self):
+        # Sac aleatoire: chaque type disponible apparait une fois avant que le
+        # sac soit melange a nouveau. Cela evite les longues series injustes.
         self.bag = list(self.available_kinds)
         random.shuffle(self.bag)
 
     def new_piece(self):
+        # Le sac depend du mode choisi: chats seuls, puis chiens, cranes et
+        # evenements speciaux selon la progression des modes.
         if not self.bag:
             self.refill_bag()
         return Piece(self.bag.pop())
@@ -84,6 +100,9 @@ class Tetricat(TetricatDrawing):
             "ghost": "mode_ghost_title",
         }
         self.mode_title = self.t(titles[mode])
+
+        # Les modes sont cumulatifs: chaque mode avance ajoute de nouvelles
+        # familles de pieces, puis certains modes ajoutent des evenements.
         self.available_kinds = list(STANDARD_SHAPES)
         if mode in ("chaos", "skull", "hyena", "ghost"):
             self.available_kinds += list(DOG_SHAPES)
@@ -92,9 +111,13 @@ class Tetricat(TetricatDrawing):
         self.restart()
 
     def t(self, key, **values):
+        # Raccourci local pour garder le code de jeu lisible malgre les
+        # nombreuses chaines traduites.
         return self.localizer.text(key, **values)
 
     def select_language(self, language):
+        # La langue peut etre changee sans recréer la fenetre. Si une partie est
+        # deja en cours, on relance le mode pour recalculer son titre traduit.
         self.localizer.set_language(language)
         self.language_selected = True
         if self.mode is not None:
@@ -103,6 +126,8 @@ class Tetricat(TetricatDrawing):
             self.draw()
 
     def handle_number(self, number):
+        # Avant le choix de langue, 1-6 mappent sur LANGUAGES. Apres, 1-5
+        # demarrent les modes. Cette separation evite deux jeux de bindings.
         if not self.language_selected:
             if 1 <= number <= len(LANGUAGES):
                 self.select_language(LANGUAGES[number - 1][0])
@@ -119,6 +144,9 @@ class Tetricat(TetricatDrawing):
             self.start_game(modes[number])
 
     def show_menu(self):
+        # Retour au menu sans oublier la langue choisie. On remet a zero les
+        # animations pour eviter qu'un callback `after` ancien redessine une
+        # scene de jeu par-dessus le menu.
         if not self.language_selected:
             self.draw()
             return
@@ -135,6 +163,9 @@ class Tetricat(TetricatDrawing):
         self.draw()
 
     def handle_click(self, event):
+        # Les zones cliquables correspondent aux rectangles dessines dans
+        # drawing.py. Elles sont explicites pour rester faciles a ajuster si
+        # l'interface change.
         if not self.language_selected:
             for index, (_, _) in enumerate(LANGUAGES):
                 row = index // 2
@@ -159,6 +190,9 @@ class Tetricat(TetricatDrawing):
             self.start_game("ghost")
 
     def valid(self, piece, dx=0, dy=0, rotation=None, x=None, y=None):
+        # Teste une position theorique sans deplacer la piece. Les cellules au
+        # dessus du plateau (`y < 0`) sont autorisees pour permettre l'apparition
+        # progressive des pieces en haut.
         test_x = piece.x + dx if x is None else x
         test_y = piece.y + dy if y is None else y
         for x, y in piece.cells(rotation=rotation, x=test_x, y=test_y):
@@ -169,6 +203,8 @@ class Tetricat(TetricatDrawing):
         return True
 
     def move(self, dx, dy):
+        # Toutes les actions joueur passent d'abord par ces garde-fous pour que
+        # pause, menu, fin de partie et animations restent prioritaires.
         if self.mode is None or self.current is None or self.event_animation_active() or self.paused or self.game_over:
             return False
         if self.valid(self.current, dx=dx, dy=dy):
@@ -182,6 +218,8 @@ class Tetricat(TetricatDrawing):
         if self.mode is None or self.current is None or self.event_animation_active() or self.paused or self.game_over:
             return
 
+        # Petits "wall kicks": si la rotation touche un bord, on essaie quelques
+        # decalages horizontaux avant d'abandonner la rotation.
         next_rotation = (self.current.rotation + 1) % len(ALL_SHAPES[self.current.kind])
         for kick in (0, -1, 1, -2, 2):
             if self.valid(self.current, dx=kick, rotation=next_rotation):
@@ -191,6 +229,8 @@ class Tetricat(TetricatDrawing):
                 return
 
     def hard_drop(self):
+        # La chute instantanee reutilise move() pour beneficier des memes regles
+        # de collision. La distance parcourue donne un petit bonus de score.
         if self.mode is None or self.current is None or self.event_animation_active() or self.paused or self.game_over:
             return
         distance = 0
@@ -222,6 +262,8 @@ class Tetricat(TetricatDrawing):
         self.root.destroy()
 
     def restart(self):
+        # Redemarre la partie courante, ou revient simplement au menu si aucun
+        # mode n'est actif. La langue selectionnee est conservee.
         if self.mode is None:
             self.show_menu()
             return
@@ -242,6 +284,9 @@ class Tetricat(TetricatDrawing):
         self.draw()
 
     def lock_piece(self):
+        # Une piece est verrouillee quand elle ne peut plus descendre. Elle est
+        # copiee dans le plateau, puis on applique toutes les consequences:
+        # lignes, score, vieillissement des fantomes, evenements, piece suivante.
         for x, y in self.current.cells():
             if y < 0:
                 self.game_over = True
@@ -261,6 +306,9 @@ class Tetricat(TetricatDrawing):
             self.draw()
             return
 
+        # Les evenements sont exclusifs sur ce verrouillage. La hyene a la
+        # priorite: si elle tombe, on attend sa fin avant d'afficher la piece
+        # suivante. Les fantomes n'apparaissent pas si un bloc fantome existe deja.
         if self.mode in ("hyena", "ghost") and random.random() < HYENA_CHANCE:
             self.start_hyena_animation()
             return
@@ -271,6 +319,8 @@ class Tetricat(TetricatDrawing):
         self.spawn_next_piece()
 
     def spawn_next_piece(self):
+        # La piece "next" devient active, puis on prepare immediatement la
+        # suivante pour que la preview de la sidebar soit toujours a jour.
         self.current = self.next_piece
         self.next_piece = self.new_piece()
         if not self.valid(self.current):
@@ -278,6 +328,8 @@ class Tetricat(TetricatDrawing):
         self.draw()
 
     def start_hyena_animation(self):
+        # La hyene cible une colonne aleatoire et s'arrete juste au-dessus de la
+        # premiere case occupee, ou au sol si la colonne est vide.
         col = random.randrange(COLS)
         first_occupied = next((y for y in range(ROWS) if self.board[y][col] is not EMPTY), None)
         impact_y = ROWS - 1 if first_occupied is None else max(0, first_occupied - 1)
@@ -294,6 +346,8 @@ class Tetricat(TetricatDrawing):
         self.animate_hyena()
 
     def animate_hyena(self):
+        # Animation en pas discrets via root.after(): Tkinter garde l'interface
+        # reactive entre deux frames sans lancer de thread.
         if self.mode not in ("hyena", "ghost") or self.hyena_animation is None:
             return
 
@@ -319,6 +373,8 @@ class Tetricat(TetricatDrawing):
         self.spawn_next_piece()
 
     def hyena_adds_block(self, col, row):
+        # Variante punitive: ajoute un bloc. Si la case d'impact est deja prise,
+        # c'est une fin de partie car la colonne est consideree comme bouchee.
         if self.board[row][col] is EMPTY:
             self.board[row][col] = HYENA_KIND
             self.event_notice = self.t("hyena_add", col=col + 1)
@@ -328,6 +384,8 @@ class Tetricat(TetricatDrawing):
         self.event_notice = self.t("hyena_blocked")
 
     def hyena_destroys_around(self, col, row):
+        # Variante utile: detruit la case d'impact et ses voisines orthogonales.
+        # Les diagonales sont ignorees pour garder l'effet lisible.
         destroyed = 0
         for y in range(max(0, row - 1), min(ROWS, row + 2)):
             for x in range(max(0, col - 1), min(COLS, col + 2)):
@@ -337,6 +395,8 @@ class Tetricat(TetricatDrawing):
         self.event_notice = self.t("hyena_destroy", count=destroyed)
 
     def start_ghost_animation(self):
+        # Les fantomes apparaissent sous une zone de securite pour eviter une
+        # apparition immediate dans les toutes premieres lignes.
         col = random.randrange(0, COLS - 1)
         row = random.randrange(GHOST_SAFE_TOP_ROWS, ROWS - 1)
         self.current = None
@@ -349,6 +409,8 @@ class Tetricat(TetricatDrawing):
         self.animate_ghosts()
 
     def animate_ghosts(self):
+        # Le bloc 2x2 se revele cellule par cellule. Une fois complet, il est
+        # inscrit dans le plateau comme n'importe quelle piece verrouillee.
         if self.mode != "ghost" or self.ghost_animation is None:
             return
 
@@ -369,6 +431,8 @@ class Tetricat(TetricatDrawing):
         self.spawn_next_piece()
 
     def age_ghost_blocks(self):
+        # Les blocs fantomes ont une duree de vie exprimee en pieces verrouillees.
+        # Quand le compteur tombe a zero, ils explosent et liberent leurs cases.
         if self.mode != "ghost" or not self.ghost_blocks:
             return False
 
@@ -388,6 +452,8 @@ class Tetricat(TetricatDrawing):
         return exploded
 
     def sync_ghost_blocks_after_line_clear(self):
+        # Une ligne complete peut deplacer ou supprimer des cellules fantomes.
+        # On rescane donc le plateau pour garder la liste d'explosion coherente.
         if self.mode != "ghost" or not self.ghost_blocks:
             return
 
@@ -403,6 +469,8 @@ class Tetricat(TetricatDrawing):
             self.ghost_blocks = []
 
     def explode_ghost_block(self, block):
+        # L'explosion ne supprime que les cellules encore marquees fantomes. Si
+        # une ligne les a deja effacees, on ne touche pas aux autres pieces.
         exploded = 0
         for x, y in block["cells"]:
             if 0 <= x < COLS and 0 <= y < ROWS and self.board[y][x] == GHOST_KIND:
@@ -413,6 +481,8 @@ class Tetricat(TetricatDrawing):
             self.event_notice = self.t("ghost_boom")
 
     def clear_lines(self):
+        # On conserve les lignes qui contiennent au moins une case vide, puis on
+        # ajoute autant de lignes vides en haut que de lignes supprimees.
         kept = [row for row in self.board if any(cell is EMPTY for cell in row)]
         cleared = ROWS - len(kept)
         if cleared:
@@ -420,10 +490,15 @@ class Tetricat(TetricatDrawing):
         return cleared
 
     def fall_delay(self):
+        # Le niveau accelere progressivement la gravite, avec un minimum pour que
+        # le jeu reste jouable. La chute acceleree force un delai tres court.
         base = max(110, FALL_MS - (self.level - 1) * 42)
         return FAST_FALL_MS if self.soft_drop else base
 
     def tick(self):
+        # Boucle principale: une tentative de descente a chaque tick. Si la piece
+        # ne peut plus descendre, elle est verrouillee et la suite du cycle part
+        # de lock_piece().
         if self.mode is not None and self.current is not None and not self.event_animation_active() and not self.paused and not self.game_over:
             if not self.move(0, 1):
                 self.lock_piece()

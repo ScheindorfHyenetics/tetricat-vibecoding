@@ -7,6 +7,9 @@ from pieces import ALL_COLORS, ALL_SHAPES, DOG_KINDS, GHOST_KIND, HYENA_KIND, SK
 
 class TetricatDrawing:
     def draw(self):
+        # Point d'entree unique du rendu. Chaque appel reconstruit toute l'image
+        # du canvas; cela evite d'avoir a synchroniser des elements graphiques
+        # persistants avec l'etat du jeu.
         self.canvas.delete("all")
         if not self.language_selected:
             self.draw_language_screen()
@@ -23,12 +26,16 @@ class TetricatDrawing:
         self.draw_ghost_animation()
         self.draw_sidebar()
 
+        # Les bannieres sont dessinees en dernier pour rester au-dessus du
+        # plateau et de la sidebar.
         if self.paused:
             self.draw_banner(self.t("pause_title"), self.t("pause_subtitle"))
         elif self.game_over:
             self.draw_banner(self.t("game_over_title"), self.t("game_over_subtitle"))
 
     def draw_board_background(self):
+        # Le plateau occupe la partie gauche de la fenetre. La grille est purement
+        # visuelle: les collisions utilisent self.board dans game.py.
         self.canvas.create_rectangle(0, 0, BOARD_W, BOARD_H, fill="#1e2330", outline="")
         for x in range(COLS + 1):
             px = x * CELL
@@ -38,17 +45,22 @@ class TetricatDrawing:
             self.canvas.create_line(0, py, BOARD_W, py, fill="#2b3140")
 
     def draw_landed_pieces(self):
+        # Parcourt le plateau logique et dessine uniquement les cases occupees.
         for y, row in enumerate(self.board):
             for x, kind in enumerate(row):
                 if kind is not EMPTY:
                     self.draw_piece_cell(x, y, kind)
 
     def draw_current_piece(self):
+        # La piece active n'est pas encore inscrite dans self.board, elle est donc
+        # dessinee separement par-dessus les pieces deja posees.
         for x, y in self.current.cells():
             if y >= 0:
                 self.draw_piece_cell(x, y, self.current.kind)
 
     def draw_ghost(self):
+        # Ombre de chute: on simule la descente jusqu'a collision sans modifier
+        # la piece active, puis on dessine cette position en contour.
         if self.current is None:
             return
         ghost_y = self.current.y
@@ -59,6 +71,9 @@ class TetricatDrawing:
                 self.draw_piece_cell(x, y, self.current.kind, ghost=True)
 
     def draw_hyena_animation(self):
+        # Pendant l'animation, la hyene est stockee avec une ligne flottante. Les
+        # fonctions de dessin acceptent ces coordonnees pour produire un mouvement
+        # fluide entre deux cases.
         if not self.hyena_animation:
             return
         self.draw_piece_cell(
@@ -68,6 +83,8 @@ class TetricatDrawing:
         )
 
     def draw_ghost_animation(self):
+        # Le bloc fantome apparait progressivement: `progress` de 0 a 1 decide le
+        # nombre de cellules deja visibles dans le carre 2x2.
         if not self.ghost_animation:
             return
         col = self.ghost_animation["col"]
@@ -78,6 +95,9 @@ class TetricatDrawing:
                 self.draw_piece_cell(col + dx, row + dy, GHOST_KIND)
 
     def draw_piece_cell(self, grid_x, grid_y, kind, ghost=False, offset_x=0, offset_y=0, scale=1):
+        # Dispatch visuel par famille de piece. La logique du jeu manipule des
+        # codes ("I", "P", "SK_PLUS"...), et cette methode choisit le dessin
+        # adapte sans que game.py connaisse les details graphiques.
         color = ALL_COLORS[kind]
         if kind in DOG_KINDS:
             self.draw_dog_cell(grid_x, grid_y, color, ghost=ghost, offset_x=offset_x, offset_y=offset_y, scale=scale)
@@ -91,6 +111,8 @@ class TetricatDrawing:
             self.draw_cat_cell(grid_x, grid_y, color, ghost=ghost, offset_x=offset_x, offset_y=offset_y, scale=scale)
 
     def draw_cat_cell(self, grid_x, grid_y, color, ghost=False, offset_x=0, offset_y=0, scale=1):
+        # Toutes les cellules utilisent le meme systeme de coordonnees:
+        # grille -> pixels, avec un offset/scale pour les apercus de menu.
         x = offset_x + grid_x * CELL * scale
         y = offset_y + grid_y * CELL * scale
         size = CELL * scale
@@ -116,6 +138,8 @@ class TetricatDrawing:
         )
 
         if ghost:
+            # En mode ombre, seul le contour est dessine pour ne pas confondre
+            # l'apercu avec une vraie piece posee.
             return
 
         eye_y = y + 15 * scale
@@ -138,6 +162,8 @@ class TetricatDrawing:
         self.canvas.create_line(x + 25 * scale, y + 24 * scale, x + 30 * scale, y + 25 * scale, fill="#171b24")
 
     def draw_dog_cell(self, grid_x, grid_y, color, ghost=False, offset_x=0, offset_y=0, scale=1):
+        # Variante chien: meme boite de collision qu'une cellule normale, seul le
+        # dessin interne change.
         x = offset_x + grid_x * CELL * scale
         y = offset_y + grid_y * CELL * scale
         size = CELL * scale
@@ -186,6 +212,7 @@ class TetricatDrawing:
         self.canvas.create_arc(x + 16 * scale, y + 21 * scale, x + 20 * scale, y + 27 * scale, start=225, extent=115, style=tk.ARC, outline="#171b24")
 
     def draw_skull_cell(self, grid_x, grid_y, color, ghost=False, offset_x=0, offset_y=0, scale=1):
+        # Variante crane pour les pieces speciales du mode skull et au-dela.
         x = offset_x + grid_x * CELL * scale
         y = offset_y + grid_y * CELL * scale
         size = CELL * scale
@@ -239,6 +266,8 @@ class TetricatDrawing:
         self.canvas.create_line(x + 10 * scale, y + 23 * scale, x + 24 * scale, y + 23 * scale, fill="#10131a")
 
     def draw_hyena_cell(self, grid_x, grid_y, color, ghost=False, offset_x=0, offset_y=0, scale=1):
+        # La hyene est dessinee comme une cellule speciale, ce qui permet de la
+        # reutiliser a la fois pendant l'animation et une fois posee sur le board.
         x = offset_x + grid_x * CELL * scale
         y = offset_y + grid_y * CELL * scale
         size = CELL * scale
@@ -304,6 +333,8 @@ class TetricatDrawing:
         self.canvas.create_line(x + 27 * scale, y + 23 * scale, x + 31 * scale, y + 24 * scale, fill="#171b24")
 
     def draw_ghost_cell(self, grid_x, grid_y, color, ghost=False, offset_x=0, offset_y=0, scale=1):
+        # Les fantomes ont un contour clair pour rester lisibles meme quand ils
+        # remplacent des pieces colorees.
         x = offset_x + grid_x * CELL * scale
         y = offset_y + grid_y * CELL * scale
         size = CELL * scale
@@ -345,6 +376,8 @@ class TetricatDrawing:
         self.canvas.create_oval(x + 14 * scale, y + 20 * scale, x + 20 * scale, y + 24 * scale, fill="#15202b", outline="")
 
     def draw_sidebar(self):
+        # La sidebar affiche l'etat courant de la partie et les controles. Les
+        # textes passent tous par self.t() pour suivre la langue choisie.
         x0 = BOARD_W
         self.canvas.create_rectangle(x0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
         self.canvas.create_text(x0 + 28, 35, text=self.t("title"), anchor="w", fill="#f6f7fb", font=("Segoe UI", 22, "bold"))
@@ -359,6 +392,8 @@ class TetricatDrawing:
         preview_x = x0 + 34
         preview_y = 310
         preview_scale = 0.72
+        # Apercu de la piece suivante: les coordonnees de forme sont reutilisees
+        # avec un offset et un scale plus petit.
         for cx, cy in ALL_SHAPES[self.next_piece.kind][0]:
             self.draw_piece_cell(cx, cy, self.next_piece.kind, offset_x=preview_x, offset_y=preview_y, scale=preview_scale)
 
@@ -390,6 +425,8 @@ class TetricatDrawing:
             )
 
     def draw_language_screen(self):
+        # Premier ecran affiche au lancement. Les boutons sont en grille 2x3; les
+        # memes coordonnees sont reprises par game.handle_click().
         self.canvas.create_rectangle(0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
         self.canvas.create_rectangle(28, 28, WINDOW_W - 28, WINDOW_H - 28, fill="#1e2330", outline="#2b3140", width=2)
         self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
@@ -400,6 +437,8 @@ class TetricatDrawing:
             "fr": "Francais",
             "es": "Espanol",
             "de": "Deutsch",
+            # Echappements Unicode pour eviter les problemes d'encodage dans les
+            # consoles Windows tout en affichant les noms natifs dans Tkinter.
             "ja": "\u65e5\u672c\u8a9e",
             "zh": "\u4e2d\u6587",
         }
@@ -413,6 +452,8 @@ class TetricatDrawing:
         self.canvas.create_text(WINDOW_W / 2, 525, text=self.t("language_hint"), fill="#aeb7c8", font=("Segoe UI", 11))
 
     def draw_title_screen(self):
+        # Menu principal apres le choix de langue. Il n'affiche aucun etat de
+        # partie: cliquer ou presser 1-5 appelle start_game().
         self.canvas.create_rectangle(0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
         self.canvas.create_rectangle(28, 28, WINDOW_W - 28, WINDOW_H - 28, fill="#1e2330", outline="#2b3140", width=2)
         self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
@@ -445,11 +486,15 @@ class TetricatDrawing:
         self.canvas.create_text(WINDOW_W / 2, 578, text=music_hint, fill="#aeb7c8", font=("Segoe UI", 10))
 
     def draw_menu_button(self, x, y, title, subtitle):
+        # Bouton simple dessine dans le canvas. Tkinter Canvas ne fournit pas de
+        # widgets boutons stylables ici, donc les zones cliquables sont gerees
+        # manuellement dans game.handle_click().
         self.canvas.create_rectangle(x, y, x + 300, y + 60, fill="#f6f7fb", outline="#10131a", width=2)
         self.canvas.create_text(x + 20, y + 18, text=title, anchor="w", fill="#10131a", font=("Segoe UI", 14, "bold"))
         self.canvas.create_text(x + 20, y + 42, text=subtitle, anchor="w", fill="#3c4658", font=("Segoe UI", 10))
 
     def draw_banner(self, title, subtitle):
+        # Overlay centre utilise pour pause et game over.
         self.canvas.create_rectangle(24, 210, BOARD_W - 24, 330, fill="#10131a", outline="#f6f7fb", width=2)
         self.canvas.create_text(BOARD_W / 2, 250, text=title, fill="#f6f7fb", font=("Segoe UI", 24, "bold"))
         self.canvas.create_text(BOARD_W / 2, 292, text=subtitle, fill="#aeb7c8", font=("Segoe UI", 13))
