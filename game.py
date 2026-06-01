@@ -17,6 +17,7 @@ from config import (
 )
 from drawing import TetricatDrawing
 from input_controls import bind_user_inputs
+from localization import LANGUAGES, Localizer
 from music import MidiMusic
 from pieces import ALL_SHAPES, DOG_SHAPES, GHOST_KIND, HYENA_KIND, Piece, SKULL_SHAPES, STANDARD_SHAPES
 
@@ -39,6 +40,8 @@ class Tetricat(TetricatDrawing):
         self.music.play()
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
+        self.localizer = Localizer("en")
+        self.language_selected = False
         self.mode = None
         self.mode_title = ""
         self.available_kinds = []
@@ -74,13 +77,13 @@ class Tetricat(TetricatDrawing):
     def start_game(self, mode):
         self.mode = mode
         titles = {
-            "classic": "Classique chats",
-            "chaos": "Chaos chiens",
-            "skull": "Tetes de mort",
-            "hyena": "Hyene panique",
-            "ghost": "Fantomes 2x2",
+            "classic": "mode_classic_title",
+            "chaos": "mode_chaos_title",
+            "skull": "mode_skull_title",
+            "hyena": "mode_hyena_title",
+            "ghost": "mode_ghost_title",
         }
-        self.mode_title = titles[mode]
+        self.mode_title = self.t(titles[mode])
         self.available_kinds = list(STANDARD_SHAPES)
         if mode in ("chaos", "skull", "hyena", "ghost"):
             self.available_kinds += list(DOG_SHAPES)
@@ -88,7 +91,37 @@ class Tetricat(TetricatDrawing):
             self.available_kinds += list(SKULL_SHAPES)
         self.restart()
 
+    def t(self, key, **values):
+        return self.localizer.text(key, **values)
+
+    def select_language(self, language):
+        self.localizer.set_language(language)
+        self.language_selected = True
+        if self.mode is not None:
+            self.start_game(self.mode)
+        else:
+            self.draw()
+
+    def handle_number(self, number):
+        if not self.language_selected:
+            if 1 <= number <= len(LANGUAGES):
+                self.select_language(LANGUAGES[number - 1][0])
+            return
+
+        modes = {
+            1: "classic",
+            2: "chaos",
+            3: "skull",
+            4: "hyena",
+            5: "ghost",
+        }
+        if number in modes:
+            self.start_game(modes[number])
+
     def show_menu(self):
+        if not self.language_selected:
+            self.draw()
+            return
         self.mode = None
         self.current = None
         self.next_piece = None
@@ -102,6 +135,16 @@ class Tetricat(TetricatDrawing):
         self.draw()
 
     def handle_click(self, event):
+        if not self.language_selected:
+            for index, (_, _) in enumerate(LANGUAGES):
+                row = index // 2
+                col = index % 2
+                x = 70 + col * 175
+                y = 245 + row * 78
+                if x <= event.x <= x + 160 and y <= event.y <= y + 58:
+                    self.select_language(LANGUAGES[index][0])
+                    return
+            return
         if self.mode is not None:
             return
         if 90 <= event.x <= 390 and 250 <= event.y <= 310:
@@ -218,7 +261,7 @@ class Tetricat(TetricatDrawing):
             self.draw()
             return
 
-        if self.mode == "hyena" and random.random() < HYENA_CHANCE:
+        if self.mode in ("hyena", "ghost") and random.random() < HYENA_CHANCE:
             self.start_hyena_animation()
             return
         if self.mode == "ghost" and not ghost_exploded and not self.ghost_blocks and random.random() < GHOST_CHANCE:
@@ -241,7 +284,7 @@ class Tetricat(TetricatDrawing):
         action = "add" if random.random() < 0.5 else "destroy"
 
         self.current = None
-        self.event_notice = "Hyene en approche..."
+        self.event_notice = self.t("hyena_approach")
         self.hyena_animation = {
             "col": col,
             "row": -1.3,
@@ -251,7 +294,7 @@ class Tetricat(TetricatDrawing):
         self.animate_hyena()
 
     def animate_hyena(self):
-        if self.mode != "hyena" or self.hyena_animation is None:
+        if self.mode not in ("hyena", "ghost") or self.hyena_animation is None:
             return
 
         target = self.hyena_animation["target"]
@@ -278,11 +321,11 @@ class Tetricat(TetricatDrawing):
     def hyena_adds_block(self, col, row):
         if self.board[row][col] is EMPTY:
             self.board[row][col] = HYENA_KIND
-            self.event_notice = f"Hyene: +1 en colonne {col + 1}"
+            self.event_notice = self.t("hyena_add", col=col + 1)
             return
 
         self.game_over = True
-        self.event_notice = "Hyene: colonne bouchee"
+        self.event_notice = self.t("hyena_blocked")
 
     def hyena_destroys_around(self, col, row):
         destroyed = 0
@@ -291,13 +334,13 @@ class Tetricat(TetricatDrawing):
                 if abs(x - col) + abs(y - row) <= 1 and self.board[y][x] is not EMPTY:
                     self.board[y][x] = EMPTY
                     destroyed += 1
-        self.event_notice = f"Hyene: {destroyed} case(s) grattee(s)"
+        self.event_notice = self.t("hyena_destroy", count=destroyed)
 
     def start_ghost_animation(self):
         col = random.randrange(0, COLS - 1)
         row = random.randrange(GHOST_SAFE_TOP_ROWS, ROWS - 1)
         self.current = None
-        self.event_notice = "Fantomes en approche..."
+        self.event_notice = self.t("ghost_approach")
         self.ghost_animation = {
             "col": col,
             "row": row,
@@ -322,7 +365,7 @@ class Tetricat(TetricatDrawing):
             self.board[y][x] = GHOST_KIND
         self.ghost_blocks = [{"cells": cells, "pieces_left": GHOST_LIFETIME_PIECES}]
         self.ghost_animation = None
-        self.event_notice = "Fantomes: 3 pieces avant explosion"
+        self.event_notice = self.t("ghost_countdown_start")
         self.spawn_next_piece()
 
     def age_ghost_blocks(self):
@@ -341,7 +384,7 @@ class Tetricat(TetricatDrawing):
         self.ghost_blocks = remaining_blocks
         if self.ghost_blocks:
             pieces_left = min(block["pieces_left"] for block in self.ghost_blocks)
-            self.event_notice = f"Fantomes: explosion dans {pieces_left} piece(s)"
+            self.event_notice = self.t("ghost_countdown", count=pieces_left)
         return exploded
 
     def sync_ghost_blocks_after_line_clear(self):
@@ -367,7 +410,7 @@ class Tetricat(TetricatDrawing):
                 exploded += 1
         if exploded:
             self.music.play_explosion()
-            self.event_notice = "Fantomes: BOUM"
+            self.event_notice = self.t("ghost_boom")
 
     def clear_lines(self):
         kept = [row for row in self.board if any(cell is EMPTY for cell in row)]

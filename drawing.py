@@ -1,12 +1,16 @@
 import tkinter as tk
 
 from config import BOARD_H, BOARD_W, CELL, COLS, EMPTY, ROWS, WINDOW_H, WINDOW_W
+from localization import LANGUAGES
 from pieces import ALL_COLORS, ALL_SHAPES, DOG_KINDS, GHOST_KIND, HYENA_KIND, SKULL_KINDS
 
 
 class TetricatDrawing:
     def draw(self):
         self.canvas.delete("all")
+        if not self.language_selected:
+            self.draw_language_screen()
+            return
         if self.mode is None:
             self.draw_title_screen()
             return
@@ -20,9 +24,9 @@ class TetricatDrawing:
         self.draw_sidebar()
 
         if self.paused:
-            self.draw_banner("PAUSE", "P pour reprendre")
+            self.draw_banner(self.t("pause_title"), self.t("pause_subtitle"))
         elif self.game_over:
-            self.draw_banner("MIAOU TERMINAL", "R pour recommencer")
+            self.draw_banner(self.t("game_over_title"), self.t("game_over_subtitle"))
 
     def draw_board_background(self):
         self.canvas.create_rectangle(0, 0, BOARD_W, BOARD_H, fill="#1e2330", outline="")
@@ -343,14 +347,14 @@ class TetricatDrawing:
     def draw_sidebar(self):
         x0 = BOARD_W
         self.canvas.create_rectangle(x0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
-        self.canvas.create_text(x0 + 28, 35, text="Tetricat", anchor="w", fill="#f6f7fb", font=("Segoe UI", 22, "bold"))
+        self.canvas.create_text(x0 + 28, 35, text=self.t("title"), anchor="w", fill="#f6f7fb", font=("Segoe UI", 22, "bold"))
         self.canvas.create_text(x0 + 28, 62, text=self.mode_title, anchor="w", fill="#aeb7c8", font=("Segoe UI", 10, "bold"))
-        self.canvas.create_text(x0 + 28, 80, text=f"Score\n{self.score}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
-        self.canvas.create_text(x0 + 28, 145, text=f"Lignes\n{self.lines}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
-        self.canvas.create_text(x0 + 28, 210, text=f"Niveau\n{self.level}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
+        self.canvas.create_text(x0 + 28, 80, text=f"{self.t('score')}\n{self.score}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
+        self.canvas.create_text(x0 + 28, 145, text=f"{self.t('lines')}\n{self.lines}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
+        self.canvas.create_text(x0 + 28, 210, text=f"{self.t('level')}\n{self.level}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
         if self.event_notice:
             self.canvas.create_text(x0 + 28, 262, text=self.event_notice, anchor="nw", fill="#ffd166", font=("Segoe UI", 9, "bold"), width=130)
-        self.canvas.create_text(x0 + 28, 285, text="Prochain", anchor="w", fill="#aeb7c8", font=("Segoe UI", 12, "bold"))
+        self.canvas.create_text(x0 + 28, 285, text=self.t("next"), anchor="w", fill="#aeb7c8", font=("Segoe UI", 12, "bold"))
 
         preview_x = x0 + 34
         preview_y = 310
@@ -358,14 +362,23 @@ class TetricatDrawing:
         for cx, cy in ALL_SHAPES[self.next_piece.kind][0]:
             self.draw_piece_cell(cx, cy, self.next_piece.kind, offset_x=preview_x, offset_y=preview_y, scale=preview_scale)
 
-        music_label = "M musique off"
+        music_label = self.t("music_off")
         if self.music.enabled and self.music.backend == "midi":
-            music_label = "M musique midi"
+            music_label = self.t("music_midi")
         elif self.music.enabled and self.music.backend == "synth":
-            music_label = "M musique douce"
+            music_label = self.t("music_synth")
         elif self.music.enabled and self.music.backend == "beep":
-            music_label = "M musique simple"
-        controls = ["<- -> bouger", "^ tourner", "v accelerer", "Espace poser", "P pause", music_label, "R reset", "Esc menu"]
+            music_label = self.t("music_beep")
+        controls = [
+            self.t("control_move"),
+            self.t("control_rotate"),
+            self.t("control_soft_drop"),
+            self.t("control_hard_drop"),
+            self.t("control_pause"),
+            music_label,
+            self.t("control_reset"),
+            self.t("control_menu"),
+        ]
         for index, line in enumerate(controls):
             self.canvas.create_text(
                 x0 + 28,
@@ -376,14 +389,37 @@ class TetricatDrawing:
                 font=("Segoe UI", 11),
             )
 
+    def draw_language_screen(self):
+        self.canvas.create_rectangle(0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
+        self.canvas.create_rectangle(28, 28, WINDOW_W - 28, WINDOW_H - 28, fill="#1e2330", outline="#2b3140", width=2)
+        self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
+        self.canvas.create_text(WINDOW_W / 2, 150, text=self.t("language_title"), fill="#aeb7c8", font=("Segoe UI", 18, "bold"))
+
+        labels = {
+            "en": "English",
+            "fr": "Francais",
+            "es": "Espanol",
+            "de": "Deutsch",
+            "ja": "\u65e5\u672c\u8a9e",
+            "zh": "\u4e2d\u6587",
+        }
+        for index, (code, _) in enumerate(LANGUAGES):
+            row = index // 2
+            col = index % 2
+            x = 70 + col * 175
+            y = 245 + row * 78
+            self.draw_menu_button(x, y, f"{index + 1}  {labels[code]}", "")
+
+        self.canvas.create_text(WINDOW_W / 2, 525, text=self.t("language_hint"), fill="#aeb7c8", font=("Segoe UI", 11))
+
     def draw_title_screen(self):
         self.canvas.create_rectangle(0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
         self.canvas.create_rectangle(28, 28, WINDOW_W - 28, WINDOW_H - 28, fill="#1e2330", outline="#2b3140", width=2)
-        self.canvas.create_text(WINDOW_W / 2, 92, text="Tetricat", fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
+        self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
         self.canvas.create_text(
             WINDOW_W / 2,
             140,
-            text="Des chats, des chiens, des tetes de mort, des hyenes et des fantomes.",
+            text=self.t("intro"),
             fill="#aeb7c8",
             font=("Segoe UI", 13),
         )
@@ -393,19 +429,19 @@ class TetricatDrawing:
         for x, kind in enumerate(["P", "U", "SK_PLUS", "SK_X"]):
             self.draw_piece_cell(x, 0, kind, offset_x=250, offset_y=178, scale=0.78)
 
-        self.draw_menu_button(90, 250, "1  Mode classique", "Pieces standard en chats")
-        self.draw_menu_button(90, 305, "2  Mode chaos", "Pieces standard + formes chiens")
-        self.draw_menu_button(90, 360, "3  Mode crane", "Etoiles et carre creux en tetes de mort")
-        self.draw_menu_button(90, 415, "4  Mode hyene", "Mode crane + surprises entre pieces")
-        self.draw_menu_button(90, 470, "5  Mode fantome", "Blocs 2x2 temporaires et explosifs")
-        music_hint = "M pour couper/remettre la musique"
+        self.draw_menu_button(90, 250, self.t("menu_classic_title"), self.t("menu_classic_subtitle"))
+        self.draw_menu_button(90, 305, self.t("menu_chaos_title"), self.t("menu_chaos_subtitle"))
+        self.draw_menu_button(90, 360, self.t("menu_skull_title"), self.t("menu_skull_subtitle"))
+        self.draw_menu_button(90, 415, self.t("menu_hyena_title"), self.t("menu_hyena_subtitle"))
+        self.draw_menu_button(90, 470, self.t("menu_ghost_title"), self.t("menu_ghost_subtitle"))
+        music_hint = self.t("music_toggle_hint")
         if self.music.backend == "synth":
-            music_hint = "MIDI indisponible: boucle douce active"
+            music_hint = self.t("music_synth_hint")
         elif self.music.backend == "beep":
-            music_hint = "MIDI indisponible: mini synthese active"
+            music_hint = self.t("music_beep_hint")
         elif self.music.backend == "off":
-            music_hint = "Musique indisponible ici"
-        self.canvas.create_text(WINDOW_W / 2, 552, text="Clique un mode ou appuie sur 1 / 2 / 3 / 4 / 5", fill="#aeb7c8", font=("Segoe UI", 11))
+            music_hint = self.t("music_off_hint")
+        self.canvas.create_text(WINDOW_W / 2, 552, text=self.t("menu_hint"), fill="#aeb7c8", font=("Segoe UI", 11))
         self.canvas.create_text(WINDOW_W / 2, 578, text=music_hint, fill="#aeb7c8", font=("Segoe UI", 10))
 
     def draw_menu_button(self, x, y, title, subtitle):
