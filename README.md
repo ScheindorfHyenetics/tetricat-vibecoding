@@ -14,6 +14,13 @@ Sous Linux, il faut que Tkinter soit installe avec Python. Selon la distribution
 sudo apt install python3-tk
 ```
 
+Pour afficher correctement le japonais et le chinois sous WSL/Linux, installe
+aussi des polices CJK:
+
+```bash
+sudo apt install fonts-noto-cjk
+```
+
 La musique fonctionne sans dependance Python externe. Le jeu utilise le premier
 lecteur WAV systeme disponible parmi `paplay`, `pw-play`, `aplay`, `afplay` ou
 `ffplay`; sans lecteur disponible, le jeu reste jouable en silence.

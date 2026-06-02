@@ -6,7 +6,20 @@ from localization import LANGUAGES
 from pieces import ALL_COLORS, ALL_SHAPES, DOG_KINDS, GHOST_KIND, HYENA_KIND, SKULL_KINDS
 
 
-FONT_CANDIDATES = ("Segoe UI", "Noto Sans", "DejaVu Sans", "Liberation Sans", "Arial")
+FONT_CANDIDATES = (
+    "Segoe UI",
+    "Noto Sans CJK JP",
+    "Noto Sans CJK SC",
+    "Noto Sans CJK TC",
+    "Noto Sans CJK",
+    "WenQuanYi Micro Hei",
+    "VL Gothic",
+    "IPAGothic",
+    "Noto Sans",
+    "DejaVu Sans",
+    "Liberation Sans",
+    "Arial",
+)
 
 
 class TetricatDrawing:
