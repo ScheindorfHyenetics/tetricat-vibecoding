@@ -17,12 +17,9 @@ def bind_user_inputs(game):
 
     # Les chiffres ont deux roles: avant le choix de langue ils selectionnent
     # une localisation, puis ils lancent les modes de jeu.
-    game.root.bind("1", lambda _: game.handle_number(1))
-    game.root.bind("2", lambda _: game.handle_number(2))
-    game.root.bind("3", lambda _: game.handle_number(3))
-    game.root.bind("4", lambda _: game.handle_number(4))
-    game.root.bind("5", lambda _: game.handle_number(5))
-    game.root.bind("6", lambda _: game.handle_number(6))
+    for number in range(1, 7):
+        game.root.bind(str(number), lambda _, value=number: game.handle_number(value))
+        game.root.bind(f"<KP_{number}>", lambda _, value=number: game.handle_number(value))
 
     # Escape ne change pas la langue: il ramene seulement au menu des modes.
     game.root.bind("<Escape>", lambda _: game.show_menu())

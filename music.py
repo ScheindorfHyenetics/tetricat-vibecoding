@@ -2,7 +2,9 @@ import base64
 import ctypes
 import math
 import os
+import shutil
 import struct
+import subprocess
 import tempfile
 import threading
 import time
@@ -40,6 +42,8 @@ class MidiMusic:
         self.backend = "midi" if self.available else "off"
         self.stop_beeps = threading.Event()
         self.beep_thread = None
+        self.external_process = None
+        self.external_player = self.find_external_player()
 
     def play(self):
         if not self.enabled:
@@ -65,9 +69,9 @@ class MidiMusic:
             self.stop()
 
     def play_explosion(self):
-        if winsound is None:
+        if winsound is None and self.external_player is None:
             return
-        threading.Thread(target=self.explosion_beeps, daemon=True).start()
+        threading.Thread(target=self.play_explosion_sound, daemon=True).start()
 
     def stop(self):
         self.stop_beeps.set()
@@ -76,6 +80,7 @@ class MidiMusic:
                 winsound.PlaySound(None, winsound.SND_PURGE)
             except Exception:
                 pass
+        self.stop_external_player()
         if self.available:
             self.command(f'stop {self.alias}')
             self.command(f'close {self.alias}')
@@ -114,10 +119,10 @@ class MidiMusic:
             return 1
 
     def start_beep_fallback(self):
+        if self.start_soft_wav_loop():
+            return
         if winsound is None:
             self.backend = "off"
-            return
-        if self.start_soft_wav_loop():
             return
         if self.beep_thread and self.beep_thread.is_alive() and not self.stop_beeps.is_set():
             return
@@ -131,14 +136,72 @@ class MidiMusic:
             self.ensure_wav_file()
             if self.wav_path is None:
                 return False
-            winsound.PlaySound(
-                self.wav_path,
-                winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP,
-            )
-            self.backend = "synth"
-            return True
+            if winsound is not None:
+                winsound.PlaySound(
+                    self.wav_path,
+                    winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP,
+                )
+                self.backend = "synth"
+                return True
+            return self.start_external_wav_loop()
         except Exception:
             return False
+
+    def find_external_player(self):
+        candidates = (
+            ("paplay", ["paplay"]),
+            ("pw-play", ["pw-play"]),
+            ("aplay", ["aplay", "-q"]),
+            ("afplay", ["afplay"]),
+            ("ffplay", ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet"]),
+        )
+        for executable, command in candidates:
+            if shutil.which(executable):
+                return command
+        return None
+
+    def start_external_wav_loop(self):
+        if self.external_player is None:
+            return False
+        if self.beep_thread and self.beep_thread.is_alive() and not self.stop_beeps.is_set():
+            return True
+        self.stop_beeps.clear()
+        self.backend = "synth"
+        self.beep_thread = threading.Thread(target=self.external_wav_loop, daemon=True)
+        self.beep_thread.start()
+        return True
+
+    def external_wav_loop(self):
+        while not self.stop_beeps.is_set() and self.enabled and self.wav_path:
+            command = [*self.external_player, self.wav_path]
+            try:
+                self.external_process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                while self.external_process.poll() is None:
+                    if self.stop_beeps.wait(0.1) or not self.enabled:
+                        self.stop_external_player()
+                        return
+            except Exception:
+                self.backend = "off"
+                return
+            finally:
+                self.external_process = None
+
+    def stop_external_player(self):
+        process = self.external_process
+        if process is None or process.poll() is not None:
+            return
+        try:
+            process.terminate()
+            process.wait(timeout=0.8)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
 
     def ensure_wav_file(self):
         if self.wav_path and os.path.exists(self.wav_path):
@@ -253,3 +316,45 @@ class MidiMusic:
             except Exception:
                 return
             time.sleep(0.025)
+
+    def play_explosion_sound(self):
+        if winsound is not None:
+            self.explosion_beeps()
+            return
+        if self.external_player is None:
+            return
+        fd, path = tempfile.mkstemp(prefix="tetricat_explosion_", suffix=".wav")
+        os.close(fd)
+        try:
+            self.write_explosion_wav(path)
+            subprocess.run(
+                [*self.external_player, path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+                check=False,
+            )
+        except Exception:
+            pass
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+    def write_explosion_wav(self, path):
+        sample_rate = 22050
+        frames = []
+        for freq, seconds in ((180, 0.055), (125, 0.07), (85, 0.12)):
+            samples = int(sample_rate * seconds)
+            for i in range(samples):
+                t = i / sample_rate
+                fade = max(0.0, 1.0 - (i / max(1, samples)))
+                noise = math.sin(2 * math.pi * freq * t) * 0.45 * fade
+                frames.append(struct.pack("<h", int(noise * 32767)))
+            frames.extend(struct.pack("<h", 0) for _ in range(int(sample_rate * 0.025)))
+        with wave.open(path, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(b"".join(frames))

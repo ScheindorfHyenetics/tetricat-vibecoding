@@ -1,11 +1,26 @@
 import tkinter as tk
+import tkinter.font as tkfont
 
 from config import BOARD_H, BOARD_W, CELL, COLS, EMPTY, ROWS, WINDOW_H, WINDOW_W
 from localization import LANGUAGES
 from pieces import ALL_COLORS, ALL_SHAPES, DOG_KINDS, GHOST_KIND, HYENA_KIND, SKULL_KINDS
 
 
+FONT_CANDIDATES = ("Segoe UI", "Noto Sans", "DejaVu Sans", "Liberation Sans", "Arial")
+
+
 class TetricatDrawing:
+    def font(self, size, weight=None):
+        if not hasattr(self, "_ui_font_family"):
+            available = {name.lower(): name for name in tkfont.families(self.root)}
+            self._ui_font_family = next(
+                (available[name.lower()] for name in FONT_CANDIDATES if name.lower() in available),
+                "TkDefaultFont",
+            )
+        if weight is None:
+            return (self._ui_font_family, size)
+        return (self._ui_font_family, size, weight)
+
     def draw(self):
         # Point d'entree unique du rendu. Chaque appel reconstruit toute l'image
         # du canvas; cela evite d'avoir a synchroniser des elements graphiques
@@ -380,14 +395,14 @@ class TetricatDrawing:
         # textes passent tous par self.t() pour suivre la langue choisie.
         x0 = BOARD_W
         self.canvas.create_rectangle(x0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
-        self.canvas.create_text(x0 + 28, 35, text=self.t("title"), anchor="w", fill="#f6f7fb", font=("Segoe UI", 22, "bold"))
-        self.canvas.create_text(x0 + 28, 62, text=self.mode_title, anchor="w", fill="#aeb7c8", font=("Segoe UI", 10, "bold"))
-        self.canvas.create_text(x0 + 28, 80, text=f"{self.t('score')}\n{self.score}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
-        self.canvas.create_text(x0 + 28, 145, text=f"{self.t('lines')}\n{self.lines}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
-        self.canvas.create_text(x0 + 28, 210, text=f"{self.t('level')}\n{self.level}", anchor="nw", fill="#f6f7fb", font=("Segoe UI", 13, "bold"))
+        self.canvas.create_text(x0 + 28, 35, text=self.t("title"), anchor="w", fill="#f6f7fb", font=self.font(22, "bold"))
+        self.canvas.create_text(x0 + 28, 62, text=self.mode_title, anchor="w", fill="#aeb7c8", font=self.font(10, "bold"))
+        self.canvas.create_text(x0 + 28, 80, text=f"{self.t('score')}\n{self.score}", anchor="nw", fill="#f6f7fb", font=self.font(13, "bold"))
+        self.canvas.create_text(x0 + 28, 145, text=f"{self.t('lines')}\n{self.lines}", anchor="nw", fill="#f6f7fb", font=self.font(13, "bold"))
+        self.canvas.create_text(x0 + 28, 210, text=f"{self.t('level')}\n{self.level}", anchor="nw", fill="#f6f7fb", font=self.font(13, "bold"))
         if self.event_notice:
-            self.canvas.create_text(x0 + 28, 262, text=self.event_notice, anchor="nw", fill="#ffd166", font=("Segoe UI", 9, "bold"), width=130)
-        self.canvas.create_text(x0 + 28, 285, text=self.t("next"), anchor="w", fill="#aeb7c8", font=("Segoe UI", 12, "bold"))
+            self.canvas.create_text(x0 + 28, 262, text=self.event_notice, anchor="nw", fill="#ffd166", font=self.font(9, "bold"), width=130)
+        self.canvas.create_text(x0 + 28, 285, text=self.t("next"), anchor="w", fill="#aeb7c8", font=self.font(12, "bold"))
 
         preview_x = x0 + 34
         preview_y = 310
@@ -421,7 +436,7 @@ class TetricatDrawing:
                 text=line,
                 anchor="nw",
                 fill="#aeb7c8",
-                font=("Segoe UI", 11),
+                font=self.font(11),
             )
 
     def draw_language_screen(self):
@@ -429,8 +444,8 @@ class TetricatDrawing:
         # memes coordonnees sont reprises par game.handle_click().
         self.canvas.create_rectangle(0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
         self.canvas.create_rectangle(28, 28, WINDOW_W - 28, WINDOW_H - 28, fill="#1e2330", outline="#2b3140", width=2)
-        self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
-        self.canvas.create_text(WINDOW_W / 2, 150, text=self.t("language_title"), fill="#aeb7c8", font=("Segoe UI", 18, "bold"))
+        self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=self.font(42, "bold"))
+        self.canvas.create_text(WINDOW_W / 2, 150, text=self.t("language_title"), fill="#aeb7c8", font=self.font(18, "bold"))
 
         labels = {
             "en": "English",
@@ -449,20 +464,20 @@ class TetricatDrawing:
             y = 245 + row * 78
             self.draw_menu_button(x, y, f"{index + 1}  {labels[code]}", "")
 
-        self.canvas.create_text(WINDOW_W / 2, 525, text=self.t("language_hint"), fill="#aeb7c8", font=("Segoe UI", 11))
+        self.canvas.create_text(WINDOW_W / 2, 525, text=self.t("language_hint"), fill="#aeb7c8", font=self.font(11))
 
     def draw_title_screen(self):
         # Menu principal apres le choix de langue. Il n'affiche aucun etat de
         # partie: cliquer ou presser 1-5 appelle start_game().
         self.canvas.create_rectangle(0, 0, WINDOW_W, WINDOW_H, fill="#151820", outline="")
         self.canvas.create_rectangle(28, 28, WINDOW_W - 28, WINDOW_H - 28, fill="#1e2330", outline="#2b3140", width=2)
-        self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=("Segoe UI", 42, "bold"))
+        self.canvas.create_text(WINDOW_W / 2, 92, text=self.t("title"), fill="#f6f7fb", font=self.font(42, "bold"))
         self.canvas.create_text(
             WINDOW_W / 2,
             140,
             text=self.t("intro"),
             fill="#aeb7c8",
-            font=("Segoe UI", 13),
+            font=self.font(13),
         )
 
         for x, kind in enumerate(["I", "O", "T"]):
@@ -482,19 +497,19 @@ class TetricatDrawing:
             music_hint = self.t("music_beep_hint")
         elif self.music.backend == "off":
             music_hint = self.t("music_off_hint")
-        self.canvas.create_text(WINDOW_W / 2, 552, text=self.t("menu_hint"), fill="#aeb7c8", font=("Segoe UI", 11))
-        self.canvas.create_text(WINDOW_W / 2, 578, text=music_hint, fill="#aeb7c8", font=("Segoe UI", 10))
+        self.canvas.create_text(WINDOW_W / 2, 552, text=self.t("menu_hint"), fill="#aeb7c8", font=self.font(11))
+        self.canvas.create_text(WINDOW_W / 2, 578, text=music_hint, fill="#aeb7c8", font=self.font(10))
 
     def draw_menu_button(self, x, y, title, subtitle):
         # Bouton simple dessine dans le canvas. Tkinter Canvas ne fournit pas de
         # widgets boutons stylables ici, donc les zones cliquables sont gerees
         # manuellement dans game.handle_click().
         self.canvas.create_rectangle(x, y, x + 300, y + 60, fill="#f6f7fb", outline="#10131a", width=2)
-        self.canvas.create_text(x + 20, y + 18, text=title, anchor="w", fill="#10131a", font=("Segoe UI", 14, "bold"))
-        self.canvas.create_text(x + 20, y + 42, text=subtitle, anchor="w", fill="#3c4658", font=("Segoe UI", 10))
+        self.canvas.create_text(x + 20, y + 18, text=title, anchor="w", fill="#10131a", font=self.font(14, "bold"))
+        self.canvas.create_text(x + 20, y + 42, text=subtitle, anchor="w", fill="#3c4658", font=self.font(10))
 
     def draw_banner(self, title, subtitle):
         # Overlay centre utilise pour pause et game over.
         self.canvas.create_rectangle(24, 210, BOARD_W - 24, 330, fill="#10131a", outline="#f6f7fb", width=2)
-        self.canvas.create_text(BOARD_W / 2, 250, text=title, fill="#f6f7fb", font=("Segoe UI", 24, "bold"))
-        self.canvas.create_text(BOARD_W / 2, 292, text=subtitle, fill="#aeb7c8", font=("Segoe UI", 13))
+        self.canvas.create_text(BOARD_W / 2, 250, text=title, fill="#f6f7fb", font=self.font(24, "bold"))
+        self.canvas.create_text(BOARD_W / 2, 292, text=subtitle, fill="#aeb7c8", font=self.font(13))

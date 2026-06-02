@@ -31,5 +31,6 @@ GHOST_CHANCE = 0.28
 GHOST_SAFE_TOP_ROWS = 3
 GHOST_LIFETIME_PIECES = 3
 
-# Force la voie audio la plus fiable sur Windows quand le MIDI natif reste muet.
+# Force la voie audio la plus portable: WAV genere puis joue par le systeme
+# quand le MIDI natif n'est pas disponible ou reste muet.
 USE_RELIABLE_BEEP_PLAYBACK = True
